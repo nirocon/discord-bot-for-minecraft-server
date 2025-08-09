@@ -16,36 +16,43 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
-    command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'whoami && cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
-    subprocess.run(command, shell=True)
+    try:
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'whoami && cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
+        subprocess.run(command, shell=True)
+        return "Minecraftサーバーを起動しました!"
+    except Exception as e:
+        return f"サーバー起動時にエラー: {e}"
 
 # マイクラサーバーを停止する関数
 def stop_minecraft_server():
     try:
-        # サーバーを停止するために`stop`コマンドを送る
-        subprocess.run(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'", shell=True)
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
+        subprocess.run(command, shell=True)
+        return "Minecraftサーバーを停止しました!"
     except Exception as e:
-        print(f"Error stopping Minecraft server: {e}")
+        return f"サーバー停止時にエラー: {e}"
 
 # スラッシュコマンド登録
 @bot.tree.command(name="start-test", description="マイクラサーバーを起動します")
 async def start(interaction: discord.Interaction):
     """Minecraftサーバーを起動するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを起動します...")
-    start_minecraft_server()
-    await interaction.followup.send("Minecraftサーバーが起動しました！")
+    mes = start_minecraft_server()
+    print(mes)
+    await interaction.followup.send(mes)
 
 @bot.tree.command(name="stop-test", description="マイクラサーバーを停止します")
 async def stop(interaction: discord.Interaction):
     """Minecraftサーバーを停止するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを停止します...")
-    stop_minecraft_server()
-    await interaction.followup.send("Minecraftサーバーが停止しました！")
+    mes = stop_minecraft_server()
+    print(mes)
+    await interaction.followup.send(mes)
 
 # 起動時にコマンド同期
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    print(f"Logged in as {bot.user}")
+    print(f"{bot.user}としてDiscordにログインしました")
 
 bot.run(TOKEN)
