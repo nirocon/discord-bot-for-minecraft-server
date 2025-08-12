@@ -9,6 +9,11 @@ TOKEN                       = os.getenv('DISCORD_TOKEN') # トークン取得
 MINECRAFT_CONTROLL_ACCOUNT  = os.getenv('MINECRAFT_CONTROLL_ACCOUNT')  # マイクラサーバーを実行しているユーザー名
 MINECRAFT_SERVER_DER_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパス
 
+START_SERVER                = "start-test"
+STOP_SERVER                 = "stop-test"
+WHITELIST_ADD               = "whitelist-add"
+WHITELIST_REMOVE            = "whitelist-remove"
+WHITELIST_LIST              = "whitelist-list"
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -32,6 +37,12 @@ def check_screen_session(session_name : str):
     session = get_screen_session()
     return session_name in session
 
+def get_screen_output(session_name):
+    command = f"screen -S {session_name} -X hardcopy -h /tmp/screen_output.txt"
+    subprocess.run(command, shell=True)  # hardcopyで出力を保存
+    with open('/tmp/screen_output.txt', 'r') as file:
+        return file.read()
+
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
     try:
@@ -48,7 +59,7 @@ def start_minecraft_server():
 def stop_minecraft_server():
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
         
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
         subprocess.run(command, check=True, shell=True)
@@ -60,7 +71,7 @@ def stop_minecraft_server():
 def whitelist_add(username):
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist add {username}\n'"
         subprocess.run(command, check=True, shell=True)
@@ -72,7 +83,7 @@ def whitelist_add(username):
 def whitelist_remove(username):
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist remove {username}\n'"
         subprocess.run(command, check=True, shell=True)
@@ -84,17 +95,20 @@ def whitelist_remove(username):
 def whitelist_list():
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
-
+            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+        
+        output = ""
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
-        process_return = subprocess.run(command, check=True, capture_output=True, shell=True)
-        output = process_return.stdout.decode('utf-8')
-        return "ホワイトリスト:\n" + output
+        subprocess.run(command, check=True, shell=True)
+        while not "\"command\":\"allowlist\"" in output: # ホワイトリストがscreenセッション内で出力されるまで待機
+            output = get_screen_output("minecraft_server").split("whitelist list")[-1]
+        list = output.split("###* ")[-1].split("*###")[0]
+        return f"ホワイトリスト:\n{list}"
     except Exception as e:
         return f"ホワイトリスト表示時にエラー: {e}"
 
 # スラッシュコマンド登録
-@bot.tree.command(name="start-test", description="マイクラサーバーを起動します")
+@bot.tree.command(name=START_SERVER, description="マイクラサーバーを起動します")
 async def start(interaction: discord.Interaction):
     """Minecraftサーバーを起動するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを起動します...")
@@ -102,7 +116,7 @@ async def start(interaction: discord.Interaction):
     print(mes)
     await interaction.followup.send(mes)
 
-@bot.tree.command(name="stop-test", description="マイクラサーバーを停止します")
+@bot.tree.command(name=STOP_SERVER, description="マイクラサーバーを停止します")
 async def stop(interaction: discord.Interaction):
     """Minecraftサーバーを停止するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを停止します...")
@@ -110,7 +124,7 @@ async def stop(interaction: discord.Interaction):
     print(mes)
     await interaction.followup.send(mes)
 
-@bot.tree.command(name="whitelist-add", description="ホワイトリストに追加します")
+@bot.tree.command(name=WHITELIST_ADD, description="ホワイトリストに追加します")
 @discord.app_commands.describe(username="ユーザー名")
 async def whitelist_add_command(interaction: discord.Interaction, username: str):
     """ホワイトリストに追加するコマンド"""
@@ -119,7 +133,7 @@ async def whitelist_add_command(interaction: discord.Interaction, username: str)
     print(mes)
     await interaction.followup.send(mes)
 
-@bot.tree.command(name="whitelist-remove", description="ホワイトリストから削除します")
+@bot.tree.command(name=WHITELIST_REMOVE, description="ホワイトリストから削除します")
 @discord.app_commands.describe(username="ユーザー名")
 async def whitelist_remove_command(interaction: discord.Interaction, username: str):
     """ホワイトリストから削除するコマンド"""
@@ -128,7 +142,7 @@ async def whitelist_remove_command(interaction: discord.Interaction, username: s
     print(mes)
     await interaction.followup.send(mes)
 
-@bot.tree.command(name="whitelist-list", description="ホワイトリストを表示します")
+@bot.tree.command(name=WHITELIST_LIST, description="ホワイトリストを表示します")
 async def whitelist_list_command(interaction: discord.Interaction):
     """ホワイトリストを表示するコマンド"""
     await interaction.response.send_message("ホワイトリストを表示します...")
