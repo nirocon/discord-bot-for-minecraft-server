@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import subprocess
+import time
 import os
 
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
@@ -101,8 +102,11 @@ def whitelist_list():
         output = ""
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
         subprocess.run(command, check=True, shell=True)
+        t = time.time()
         while not "\"command\":\"allowlist\"" in output: # ホワイトリストがscreenセッション内で出力されるまで待機
             output = get_screen_output("minecraft_server").split("whitelist list")[-1]
+            if t + 10 < time.time():
+                return "ホワイトリスト表示時にタイムアウトしました"
         list = output.split("###* ")[-1].split("*###")[0]
         return f"ホワイトリスト:\n{list}"
     except Exception as e:
