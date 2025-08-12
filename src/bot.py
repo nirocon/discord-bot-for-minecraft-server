@@ -14,6 +14,7 @@ STOP_SERVER                 = "stop-test"
 WHITELIST_ADD               = "whitelist-add"
 WHITELIST_REMOVE            = "whitelist-remove"
 WHITELIST_LIST              = "whitelist-list"
+
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -59,7 +60,7 @@ def start_minecraft_server():
 def stop_minecraft_server():
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
         
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
         subprocess.run(command, check=True, shell=True)
@@ -71,7 +72,7 @@ def stop_minecraft_server():
 def whitelist_add(username):
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist add {username}\n'"
         subprocess.run(command, check=True, shell=True)
@@ -83,7 +84,7 @@ def whitelist_add(username):
 def whitelist_remove(username):
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist remove {username}\n'"
         subprocess.run(command, check=True, shell=True)
@@ -95,7 +96,7 @@ def whitelist_remove(username):
 def whitelist_list():
     try:
         if not check_screen_session("minecraft_server"):
-            return "Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
         
         output = ""
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
