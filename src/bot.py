@@ -3,6 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import subprocess
 import time
+import tempfile
 import os
 
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
@@ -40,10 +41,11 @@ def check_screen_session(session_name : str):
     return session_name in session
 
 def get_screen_output(session_name):
-    command = f"screen -S {session_name} -X hardcopy -h /tmp/screen_output.txt"
-    subprocess.run(command, shell=True)  # hardcopyで出力を保存
-    with open('/tmp/screen_output.txt', 'r') as file:
-        return file.read()
+    with tempfile.NamedTemporaryFile(delete=True) as tmpfile:
+        command = f"screen -S {session_name} -X hardcopy -h {tmpfile.name}"
+        subprocess.run(command, check=True, shell=True)
+        tmpfile.seek(0)
+        return tmpfile.read().decode('utf-8')
 
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
