@@ -7,7 +7,7 @@ import os
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
 TOKEN                       = os.getenv('DISCORD_TOKEN') # トークン取得
 MINECRAFT_CONTROLL_ACCOUNT  = os.getenv('MINECRAFT_CONTROLL_ACCOUNT')  # マイクラサーバーを実行しているユーザー名
-MINECRAFT_SERVER_DER_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパス
+MINECRAFT_SERVER_DIR_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパス
 
 START_SERVER                = "start-test"
 STOP_SERVER                 = "stop-test"
@@ -50,7 +50,7 @@ def start_minecraft_server():
         if check_screen_session("minecraft_server"):
             return "Minecraftサーバーはすでに起動しています"
         
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DIR_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを起動しました!"
     except Exception as e:
