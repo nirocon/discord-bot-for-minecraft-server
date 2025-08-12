@@ -17,8 +17,9 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
     try:
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'whoami && cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
-        subprocess.run(command, shell=True)
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
+        process_return = subprocess.run(command, shell=True)
+        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
         return "Minecraftサーバーを起動しました!"
     except Exception as e:
         return f"サーバー起動時にエラー: {e}"
@@ -27,7 +28,8 @@ def start_minecraft_server():
 def stop_minecraft_server():
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
-        subprocess.run(command, shell=True)
+        process_return = subprocess.run(command, shell=True)
+        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
         return "Minecraftサーバーを停止しました!"
     except Exception as e:
         return f"サーバー停止時にエラー: {e}"
