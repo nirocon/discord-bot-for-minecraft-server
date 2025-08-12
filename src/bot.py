@@ -18,8 +18,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 def start_minecraft_server():
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
-        process_return = subprocess.run(command, shell=True)
-        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
+        subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを起動しました!"
     except Exception as e:
         return f"サーバー起動時にエラー: {e}"
@@ -28,8 +27,7 @@ def start_minecraft_server():
 def stop_minecraft_server():
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
-        process_return = subprocess.run(command, shell=True)
-        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
+        subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを停止しました!"
     except Exception as e:
         return f"サーバー停止時にエラー: {e}"
@@ -38,8 +36,7 @@ def stop_minecraft_server():
 def whitelist_add(username):
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist add {username}\n'"
-        process_return = subprocess.run(command, shell=True)
-        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
+        subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストに追加しました!"
     except Exception as e:
         return f"ホワイトリスト追加時にエラー: {e}"
@@ -48,8 +45,7 @@ def whitelist_add(username):
 def whitelist_remove(username):
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist remove {username}\n'"
-        process_return = subprocess.run(command, shell=True)
-        if process_return.returncode != 0: raise Exception(str(process_return.stderr))
+        subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストから削除しました!"
     except Exception as e:
         return f"ホワイトリスト削除時にエラー: {e}"
@@ -58,9 +54,8 @@ def whitelist_remove(username):
 def whitelist_list():
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
-        process_return = subprocess.run(command, shell=True)
-        if process_return.returncode != 0: raise Exception(str(process_return.stderr)) # エラーが発生した場合
-        output = str(process_return.stdout)
+        process_return = subprocess.run(command, check=True, capture_output=True, shell=True)
+        output = process_return.stdout.decode('utf-8')
         return "ホワイトリスト:\n" + output
     except Exception as e:
         return f"ホワイトリスト表示時にエラー: {e}"
