@@ -57,7 +57,7 @@ def start_minecraft_server():
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを起動しました!"
     except Exception as e:
-        print(f"サーバー起動時にエラー: {e}")
+        print(e)
         return "サーバー起動時にエラー"
 
 # マイクラサーバーを停止する関数
@@ -70,7 +70,7 @@ def stop_minecraft_server():
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを停止しました!"
     except Exception as e:
-        print(f"サーバー停止時にエラー: {e}")
+        print(e)
         return "サーバー停止時にエラー"
 
 # ホワイトリストに追加する関数
@@ -83,7 +83,7 @@ def whitelist_add(username):
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストに追加しました!"
     except Exception as e:
-        print(f"ホワイトリスト追加時にエラー: {e}")
+        print(e)
         return "ホワイトリスト追加時にエラー"
 
 # ホワイトリストから削除する関数 
@@ -96,7 +96,7 @@ def whitelist_remove(username):
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストから削除しました!"
     except Exception as e:
-        print(f"ホワイトリスト削除時にエラー: {e}")
+        print(e)
         return "ホワイトリスト削除時にエラー"
     
 # ホワイトリストを表示する関数
@@ -116,7 +116,7 @@ def whitelist_list():
         list = output.split("###* ")[-1].split("*###")[0]
         return f"ホワイトリスト:\n{list}"
     except Exception as e:
-        print(f"ホワイトリスト表示時にエラー: {e}")
+        print(e)
         return f"ホワイトリスト表示時にエラー"
 
 # スラッシュコマンド登録
@@ -125,6 +125,7 @@ async def start(interaction: discord.Interaction):
     """Minecraftサーバーを起動するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを起動します...")
     mes = start_minecraft_server()
+    print(mes)
     await interaction.followup.send(mes)
 
 @bot.tree.command(name=STOP_SERVER, description="マイクラサーバーを停止します")
@@ -132,6 +133,7 @@ async def stop(interaction: discord.Interaction):
     """Minecraftサーバーを停止するコマンド"""
     await interaction.response.send_message("Minecraftサーバーを停止します...")
     mes = stop_minecraft_server()
+    print(mes)
     await interaction.followup.send(mes)
 
 @bot.tree.command(name=WHITELIST_ADD, description="ホワイトリストに追加します")
@@ -140,6 +142,7 @@ async def whitelist_add_command(interaction: discord.Interaction, username: str)
     """ホワイトリストに追加するコマンド"""
     await interaction.response.send_message(f"{username}をホワイトリストに追加します...")
     mes = whitelist_add(username)
+    print(mes)
     await interaction.followup.send(mes)
 
 @bot.tree.command(name=WHITELIST_REMOVE, description="ホワイトリストから削除します")
@@ -148,6 +151,7 @@ async def whitelist_remove_command(interaction: discord.Interaction, username: s
     """ホワイトリストから削除するコマンド"""
     await interaction.response.send_message(f"{username}をホワイトリストから削除します...")
     mes = whitelist_remove(username)
+    print(mes)
     await interaction.followup.send(mes)
 
 @bot.tree.command(name=WHITELIST_LIST, description="ホワイトリストを表示します")
@@ -155,6 +159,7 @@ async def whitelist_list_command(interaction: discord.Interaction):
     """ホワイトリストを表示するコマンド"""
     await interaction.response.send_message("ホワイトリストを表示します...")
     mes = whitelist_list()
+    print(mes)
     await interaction.followup.send(mes)
 
 # 起動時にコマンド同期
