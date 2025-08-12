@@ -14,9 +14,30 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+def get_screen_session():
+    try:
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -ls"
+        process_return = subprocess.run(command, check=True, capture_output=True, shell=True)
+        output = process_return.stdout.decode('utf-8')
+        return output
+    except subprocess.CalledProcessError as e:
+        if e.returncode == 1: # screenが起動していないとき
+            return ""
+        else:
+            raise
+    except Exception as e:
+        raise
+
+def check_screen_session(session_name : str):
+    session = get_screen_session()
+    return session_name in session
+
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
     try:
+        if check_screen_session("minecraft_server"):
+            return "Minecraftサーバーはすでに起動しています"
+        
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DER_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを起動しました!"
