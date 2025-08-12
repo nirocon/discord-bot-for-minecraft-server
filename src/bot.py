@@ -47,6 +47,9 @@ def start_minecraft_server():
 # マイクラサーバーを停止する関数
 def stop_minecraft_server():
     try:
+        if not check_screen_session("minecraft_server"):
+            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+        
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを停止しました!"
@@ -56,6 +59,9 @@ def stop_minecraft_server():
 # ホワイトリストに追加する関数
 def whitelist_add(username):
     try:
+        if not check_screen_session("minecraft_server"):
+            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist add {username}\n'"
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストに追加しました!"
@@ -65,6 +71,9 @@ def whitelist_add(username):
 # ホワイトリストから削除する関数 
 def whitelist_remove(username):
     try:
+        if not check_screen_session("minecraft_server"):
+            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist remove {username}\n'"
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストから削除しました!"
@@ -74,6 +83,9 @@ def whitelist_remove(username):
 # ホワイトリストを表示する関数
 def whitelist_list():
     try:
+        if not check_screen_session("minecraft_server"):
+            return "Minecraftサーバーは起動していません\n`/start-test`で起動してください"
+
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
         process_return = subprocess.run(command, check=True, capture_output=True, shell=True)
         output = process_return.stdout.decode('utf-8')
