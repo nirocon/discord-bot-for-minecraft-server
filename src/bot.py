@@ -2,8 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import subprocess
-import time
-import tempfile
+import json
 import os
 
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
@@ -11,11 +10,16 @@ TOKEN                       = os.getenv('DISCORD_TOKEN') # トークン取得
 MINECRAFT_CONTROLL_ACCOUNT  = os.getenv('MINECRAFT_CONTROLL_ACCOUNT')  # マイクラサーバーを実行しているユーザー名
 MINECRAFT_SERVER_DIR_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパス
 
+DISCORD_BOT                 = subprocess.getoutput('whoami')
+DISCORD_BOT_DIR             = subprocess.getoutput('pwd')
+
 START_SERVER                = "start-test"
 STOP_SERVER                 = "stop-test"
 WHITELIST_ADD               = "whitelist-add"
 WHITELIST_REMOVE            = "whitelist-remove"
 WHITELIST_LIST              = "whitelist-list"
+
+SESSION_NAME                = "minecraft_server"
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -40,20 +44,13 @@ def check_screen_session(session_name : str):
     session = get_screen_session()
     return session_name in session
 
-def get_screen_output(session_name):
-    with tempfile.NamedTemporaryFile(delete=True) as tmpfile:
-        command = f"screen -S {session_name} -X hardcopy -h {tmpfile.name}"
-        subprocess.run(command, check=True, shell=True)
-        tmpfile.seek(0)
-        return tmpfile.read().decode('utf-8')
-
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
     try:
-        if check_screen_session("minecraft_server"):
+        if check_screen_session(SESSION_NAME):
             return "Minecraftサーバーはすでに起動しています"
         
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DIR_PATH} && LD_LIBRARY_PATH=. screen -dmS minecraft_server ./bedrock_server'"
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} bash -c 'cd {MINECRAFT_SERVER_DIR_PATH} && LD_LIBRARY_PATH=. screen -dmS {SESSION_NAME} ./bedrock_server'"
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを起動しました!"
     except Exception as e:
@@ -63,10 +60,10 @@ def start_minecraft_server():
 # マイクラサーバーを停止する関数
 def stop_minecraft_server():
     try:
-        if not check_screen_session("minecraft_server"):
+        if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
         
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'stop\n'"
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S {SESSION_NAME} -p 0 -X stuff 'stop\n'"
         subprocess.run(command, check=True, shell=True)
         return "Minecraftサーバーを停止しました!"
     except Exception as e:
@@ -76,10 +73,10 @@ def stop_minecraft_server():
 # ホワイトリストに追加する関数
 def whitelist_add(username):
     try:
-        if not check_screen_session("minecraft_server"):
+        if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist add {username}\n'"
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S {SESSION_NAME} -p 0 -X stuff 'whitelist add {username}\n'"
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストに追加しました!"
     except Exception as e:
@@ -89,10 +86,10 @@ def whitelist_add(username):
 # ホワイトリストから削除する関数 
 def whitelist_remove(username):
     try:
-        if not check_screen_session("minecraft_server"):
+        if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
 
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist remove {username}\n'"
+        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S {SESSION_NAME} -p 0 -X stuff 'whitelist remove {username}\n'"
         subprocess.run(command, check=True, shell=True)
         return f"{username}をホワイトリストから削除しました!"
     except Exception as e:
@@ -102,19 +99,21 @@ def whitelist_remove(username):
 # ホワイトリストを表示する関数
 def whitelist_list():
     try:
-        if not check_screen_session("minecraft_server"):
-            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
+        whitelist_raw = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
+        whitelist = json.loads(whitelist_raw)
+
+        # whitelistが空の場合
+        if not whitelist:
+            return "ホワイトリストに追加されているユーザーはありません"
         
-        output = ""
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S minecraft_server -p 0 -X stuff 'whitelist list\n'"
-        subprocess.run(command, check=True, shell=True)
-        t = time.time()
-        while not "\"command\":\"allowlist\"" in output: # ホワイトリストがscreenセッション内で出力されるまで待機
-            output = get_screen_output("minecraft_server").split("whitelist list")[-1]
-            if t + 10 < time.time():
-                return "ホワイトリスト表示時にタイムアウトしました"
-        list = output.split("###* ")[-1].split("*###")[0]
-        return f"ホワイトリスト:\n{list}"
+        # whitelistにユーザーがいる場合
+        names = ""
+        for user in whitelist:
+            names += f"{user['name']}\n"
+        return f"ホワイトリストに追加されているユーザー\n\n{names}"
+    except json.JSONDecodeError as e:
+        print(e)
+        return "ホワイトリストファイルが壊れています"
     except Exception as e:
         print(e)
         return f"ホワイトリスト表示時にエラー"
