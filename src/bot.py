@@ -101,10 +101,17 @@ def whitelist_list():
     try:
         whitelist = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
         list = json.loads(whitelist)
+        
+        # whitelistが空の場合
+        if list == None:
+            return "ホワイトリストに追加されているユーザーはありません"
+        
+        # whitelistにユーザーがいる場合
         names = ""
         for user in list:
             names += f"{user['name']}\n"
         return f"ホワイトリストに追加されているユーザー\n\n{names}"
+
     except Exception as e:
         print(e)
         return f"ホワイトリスト表示時にエラー"
