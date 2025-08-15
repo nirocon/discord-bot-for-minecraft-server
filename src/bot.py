@@ -99,16 +99,16 @@ def whitelist_remove(username):
 # ホワイトリストを表示する関数
 def whitelist_list():
     try:
-        whitelist = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
-        list = json.loads(whitelist)
+        whitelist_raw = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
+        whitelist = json.loads(whitelist)
         
         # whitelistが空の場合
-        if list == None:
+        if whitelist == None:
             return "ホワイトリストに追加されているユーザーはありません"
         
         # whitelistにユーザーがいる場合
         names = ""
-        for user in list:
+        for user in whitelist:
             names += f"{user['name']}\n"
         return f"ホワイトリストに追加されているユーザー\n\n{names}"
 
