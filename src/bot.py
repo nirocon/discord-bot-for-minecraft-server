@@ -2,8 +2,7 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import subprocess
-import time
-import tempfile
+import json
 import os
 
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
@@ -44,13 +43,6 @@ def get_screen_session():
 def check_screen_session(session_name : str):
     session = get_screen_session()
     return session_name in session
-
-def get_screen_output(session_name):
-    with tempfile.NamedTemporaryFile(delete=True) as tmpfile:
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S {session_name} -X hardcopy -h {DISCORD_BOT_DIR + tmpfile.name}"
-        subprocess.run(command, check=True, shell=True)
-        tmpfile.seek(0)
-        return tmpfile.read().decode('utf-8')
 
 # マイクラサーバーを起動する関数
 def start_minecraft_server():
@@ -107,19 +99,12 @@ def whitelist_remove(username):
 # ホワイトリストを表示する関数
 def whitelist_list():
     try:
-        if not check_screen_session(SESSION_NAME):
-            return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
-        
-        output = ""
-        command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -S {SESSION_NAME} -p 0 -X stuff 'whitelist list\n'"
-        subprocess.run(command, check=True, shell=True)
-        t = time.time()
-        while not "\"command\":\"allowlist\"" in output: # ホワイトリストがscreenセッション内で出力されるまで待機
-            output = get_screen_output(SESSION_NAME).split("whitelist list")[-1]
-            if t + 10 < time.time():
-                return "ホワイトリスト表示時にタイムアウトしました"
-        list = output.split("###* ")[-1].split("*###")[0]
-        return f"ホワイトリスト:\n{list}"
+        whitelist = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
+        list = json.loads(whitelist)
+        names = ""
+        for user in list:
+            names += f"{user['name']}\n"
+        return f"ホワイトリストに追加されているユーザー\n\n{names}"
     except Exception as e:
         print(e)
         return f"ホワイトリスト表示時にエラー"
