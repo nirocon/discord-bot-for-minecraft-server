@@ -111,7 +111,9 @@ def whitelist_list():
         for user in whitelist:
             names += f"{user['name']}\n"
         return f"ホワイトリストに追加されているユーザー\n\n{names}"
-
+    except json.JSONDecodeError as e:
+        print(e)
+        return "ホワイトリストファイルが壊れています"
     except Exception as e:
         print(e)
         return f"ホワイトリスト表示時にエラー"
