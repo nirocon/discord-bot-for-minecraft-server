@@ -13,11 +13,11 @@ MINECRAFT_SERVER_DIR_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパ
 DISCORD_BOT                 = subprocess.getoutput('whoami')
 DISCORD_BOT_DIR             = subprocess.getoutput('pwd')
 
-START_SERVER                = "start-test"
-STOP_SERVER                 = "stop-test"
-WHITELIST_ADD               = "whitelist-add"
-WHITELIST_REMOVE            = "whitelist-remove"
-WHITELIST_LIST              = "whitelist-list"
+START_SERVER                = os.getenv('START_SERVER', 'start')
+STOP_SERVER                 = os.getenv('STOP_SERVER', 'stop')
+WHITELIST_ADD               = os.getenv('WHITELIST_ADD', 'whitelist-add')
+WHITELIST_REMOVE            = os.getenv('WHITELIST_REMOVE', 'whitelist-remove')
+WHITELIST_LIST              = os.getenv('WHITELIST_LIST', 'whitelist-list')
 
 SESSION_NAME                = "minecraft_server"
 
