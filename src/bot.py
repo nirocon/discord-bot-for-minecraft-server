@@ -27,6 +27,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 def get_screen_session():
+    """screenセッションを取得する関数"""
     try:
         command = f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} screen -ls"
         process_return = subprocess.run(command, check=True, capture_output=True, shell=True)
@@ -41,11 +42,12 @@ def get_screen_session():
         raise
 
 def check_screen_session(session_name : str):
+    """screenセッションを確認する関数"""
     session = get_screen_session()
     return session_name in session
 
-# マイクラサーバーを起動する関数
 def start_minecraft_server():
+    """マイクラサーバーを起動する関数"""
     try:
         if check_screen_session(SESSION_NAME):
             return "Minecraftサーバーはすでに起動しています"
@@ -57,8 +59,8 @@ def start_minecraft_server():
         print(e)
         return "サーバー起動時にエラー"
 
-# マイクラサーバーを停止する関数
 def stop_minecraft_server():
+    """マイクラサーバーを停止する関数"""
     try:
         if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
@@ -70,8 +72,8 @@ def stop_minecraft_server():
         print(e)
         return "サーバー停止時にエラー"
 
-# ホワイトリストに追加する関数
 def whitelist_add(username):
+    """ホワイトリストに追加する関数"""
     try:
         if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
@@ -83,8 +85,8 @@ def whitelist_add(username):
         print(e)
         return "ホワイトリスト追加時にエラー"
 
-# ホワイトリストから削除する関数 
 def whitelist_remove(username):
+    """ホワイトリストから削除する関数"""
     try:
         if not check_screen_session(SESSION_NAME):
             return f"Minecraftサーバーは起動していません\n`/{START_SERVER}`で起動してください"
@@ -96,8 +98,8 @@ def whitelist_remove(username):
         print(e)
         return "ホワイトリスト削除時にエラー"
     
-# ホワイトリストを表示する関数
 def whitelist_list():
+    """ホワイトリストを表示する関数"""
     try:
         whitelist_raw = subprocess.getoutput(f"sudo su {MINECRAFT_CONTROLL_ACCOUNT} && cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
         whitelist = json.loads(whitelist_raw)
