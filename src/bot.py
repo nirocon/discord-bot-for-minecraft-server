@@ -5,10 +5,13 @@ import subprocess
 import json
 import os
 
+import minecraft_server_updater
+
 load_dotenv(dotenv_path=os.path.expanduser('.env')) # .envファイルから環境変数を読み込む
 TOKEN                       = os.getenv('DISCORD_TOKEN') # トークン取得
 MINECRAFT_CONTROLL_ACCOUNT  = os.getenv('MINECRAFT_CONTROLL_ACCOUNT')  # マイクラサーバーを実行しているユーザー名
 MINECRAFT_SERVER_DIR_PATH   = os.getenv('SERVER_DIR_PATH')  # サーバーのパス
+MINECRAFT_BACKUP_DIR_PATH   = os.getenv('BACKUP_DIR_PATH')  # バックアップのパス
 
 DISCORD_BOT                 = subprocess.getoutput('whoami')
 DISCORD_BOT_DIR             = subprocess.getoutput('pwd')
@@ -18,6 +21,7 @@ STOP_SERVER                 = os.getenv('STOP_SERVER', 'stop')
 WHITELIST_ADD               = os.getenv('WHITELIST_ADD', 'whitelist-add')
 WHITELIST_REMOVE            = os.getenv('WHITELIST_REMOVE', 'whitelist-remove')
 WHITELIST_LIST              = os.getenv('WHITELIST_LIST', 'whitelist-list')
+CREATE_BACKUP               = os.getenv('CREATE_BACKUP', 'create-backup')
 
 SESSION_NAME                = os.getenv('SESSION_NAME', 'minecraft_bedrock_server')
 
@@ -160,6 +164,17 @@ async def whitelist_list_command(interaction: discord.Interaction):
     """ホワイトリストを表示するコマンド"""
     await interaction.response.send_message("ホワイトリストを表示します...")
     mes = whitelist_list()
+    print(mes)
+    await interaction.followup.send(mes)
+
+@bot.tree.command(name=CREATE_BACKUP, description="マイクラサーバーのバックアップを作成します", guild=discord.Object(id=1312576908805799946))
+async def create_backup_command(interaction: discord.Interaction):
+    """マイクラサーバーのバックアップを作成するコマンド"""
+    await interaction.response.send_message("マイクラサーバーのバックアップを作成します...")
+    mes = minecraft_server_updater.back_up_minecraft_server(
+        server_path=MINECRAFT_SERVER_DIR_PATH,
+        backup_path=MINECRAFT_BACKUP_DIR_PATH
+    )
     print(mes)
     await interaction.followup.send(mes)
 
