@@ -101,7 +101,7 @@ def whitelist_remove(username):
 def whitelist_list():
     """ホワイトリストを表示する関数"""
     try:
-        whitelist_raw = subprocess.getoutput(f"sudo su {MINECRAFT_CONTROLL_ACCOUNT} && cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
+        whitelist_raw = subprocess.getoutput(f"sudo -u {MINECRAFT_CONTROLL_ACCOUNT} cat {MINECRAFT_SERVER_DIR_PATH}/allowlist.json")
         whitelist = json.loads(whitelist_raw)
 
         # whitelistが空の場合
