@@ -19,7 +19,7 @@ WHITELIST_ADD               = os.getenv('WHITELIST_ADD', 'whitelist-add')
 WHITELIST_REMOVE            = os.getenv('WHITELIST_REMOVE', 'whitelist-remove')
 WHITELIST_LIST              = os.getenv('WHITELIST_LIST', 'whitelist-list')
 
-SESSION_NAME                = "minecraft_server"
+SESSION_NAME                = os.getenv('SESSION_NAME', 'minecraft_bedrock_server')
 
 intents = discord.Intents.default()
 intents.message_content = True
