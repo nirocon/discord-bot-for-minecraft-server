@@ -18,18 +18,18 @@ def back_up_minecraft_server(
             returned_message += "サーバーが起動中のため、バックアップを作成する前にサーバーを停止してください。\n"
             return returned_message
         
-        # バックアップするディレクトリが存在するか確認
+        # マイクラサーバーディレクトリが存在するか確認
         command_check_dir = f"sudo -u {minecraft_controll_account} test -d {server_path}"
         process_return = subprocess.run(command_check_dir, shell=True)
         if process_return.returncode != 0:
-            returned_message += "バックアップするサーバーディレクトリが存在しません。パスを確認してください。\n"
+            returned_message += "マイクラサーバーディレクトリが存在しません。サーバー管理者に確認してください。\n"
             return returned_message
         
-        # バックアップ先のディレクトリが存在するか確認
+        # バックアップの保存先のディレクトリが存在するか確認
         command_check_dir = f"sudo -u {minecraft_controll_account} test -d {backup_path}"
         process_return = subprocess.run(command_check_dir, shell=True)
         if process_return.returncode != 0:
-            returned_message += f"バックアップ先のディレクトリが存在しません。ディレクトリを作成して保存します。\n"
+            returned_message += f"バックアップの保存先のディレクトリが存在しません。ディレクトリを新規作成して保存します。\n"
             command_create_dir = f"sudo -u {minecraft_controll_account} mkdir -p {backup_path}"
             subprocess.run(command_create_dir, check=True, shell=True)
 
