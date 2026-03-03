@@ -1,7 +1,7 @@
 import subprocess
 import os
 import tempfile
-import shutil
+import re
 from bot_backup import back_up_minecraft_server
 
 
@@ -33,6 +33,11 @@ def update_minecraft_server(
     """
     try:
         returned_message = ""
+
+        # バージョン形式チェック: 自然数.自然数.自然数.自然数
+        if not re.match(r"^\d+\.\d+\.\d+\.\d+$", server_version):
+            returned_message += "バージョン文字列が不正です。形式は N.N.N.N のような自然数4つをドットで区切ってください。例: 1.2.3.4\n"
+            return returned_message
         
         # デフォルトURLテンプレート（Minecraft Bedrock Edition）
         if server_url_template is None:
