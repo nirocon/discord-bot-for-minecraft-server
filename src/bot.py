@@ -2,11 +2,13 @@ import discord
 from discord.ext import commands
 from dotenv import load_dotenv
 import os
+import asyncio
 
 import bot_backup
 import bot_start
 import bot_stop
 import bot_whitelist
+import bot_update
 
 # プロジェクトルートにある .env を読み込む
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -24,6 +26,7 @@ WHITELIST_ADD = os.getenv('WHITELIST_ADD', 'whitelist-add')
 WHITELIST_REMOVE = os.getenv('WHITELIST_REMOVE', 'whitelist-remove')
 WHITELIST_LIST = os.getenv('WHITELIST_LIST', 'whitelist-list')
 CREATE_BACKUP = os.getenv('CREATE_BACKUP', 'create-backup')
+UPDATE_SERVER = os.getenv('UPDATE_SERVER', 'update-server')
 
 SESSION_NAME = os.getenv('SESSION_NAME', 'minecraft_bedrock_server')
 
@@ -111,6 +114,48 @@ async def create_backup_command(interaction: discord.Interaction):
         session_name=SESSION_NAME,
         server_path=MINECRAFT_SERVER_DIR_PATH,
         backup_path=MINECRAFT_BACKUP_DIR_PATH
+    )
+    print(mes)
+    await interaction.followup.send(mes)
+
+
+@bot.tree.command(name=UPDATE_SERVER, description="マイクラサーバーをアップデートします", guild=discord.Object(id=1312576908805799946))
+@discord.app_commands.describe(
+    version="サーバーバージョン",
+    create_backup="アップデート前にバックアップを作成するか"
+)
+@discord.app_commands.choices(
+    create_backup=[
+        discord.app_commands.Choice(name="はい（推奨）", value="true"),
+        discord.app_commands.Choice(name="いいえ", value="false"),
+    ]
+)
+async def update_server_command(
+    interaction: discord.Interaction,
+    version: str,
+    create_backup: discord.app_commands.Choice[str] = None
+):
+    """マイクラサーバーをアップデートします"""
+    await interaction.response.send_message(f"サーバーをバージョン {version} にアップデートします... 処理中のため応答が遅れる場合があります")
+    
+    # create_backup がNoneの場合、デフォルトで True
+    if create_backup is None:
+        create_backup_value = "true"
+    else:
+        create_backup_value = create_backup.value
+    
+    # createbackup をブール値に変換
+    create_backup_bool = create_backup_value.lower() in ('true', 'yes', '1')
+    
+    # バックグラウンドでアップデート関数を実行
+    mes = await asyncio.to_thread(
+        bot_update.update_minecraft_server,
+        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+        session_name=SESSION_NAME,
+        server_path=MINECRAFT_SERVER_DIR_PATH,
+        server_version=version,
+        create_backup=create_backup_bool,
+        backup_path=MINECRAFT_BACKUP_DIR_PATH if create_backup_bool else None,
     )
     print(mes)
     await interaction.followup.send(mes)
