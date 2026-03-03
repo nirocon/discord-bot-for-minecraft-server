@@ -3,6 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 import asyncio
+import re
 
 import bot_backup
 import bot_start
@@ -35,88 +36,124 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
 
+# グローバルロック: 処理の同時実行を防止
+server_operation_lock = asyncio.Lock()
+
 
 # スラッシュコマンド登録
 @bot.tree.command(name=START_SERVER, description="マイクラサーバーを起動します")
 async def start(interaction: discord.Interaction):
     """Minecraftサーバーを起動するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
+    
     await interaction.response.send_message("Minecraftサーバーを起動します...")
-    mes = bot_start.start_minecraft_server(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        minecraft_server_dir_path=MINECRAFT_SERVER_DIR_PATH,
-        session_name=SESSION_NAME
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_start.start_minecraft_server,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            minecraft_server_dir_path=MINECRAFT_SERVER_DIR_PATH,
+            session_name=SESSION_NAME
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=STOP_SERVER, description="マイクラサーバーを停止します")
 async def stop(interaction: discord.Interaction):
     """Minecraftサーバーを停止するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
+    
     await interaction.response.send_message("Minecraftサーバーを停止します...")
-    mes = bot_stop.stop_minecraft_server(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        session_name=SESSION_NAME,
-        start_server_command=START_SERVER
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_stop.stop_minecraft_server,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            session_name=SESSION_NAME,
+            start_server_command=START_SERVER
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=WHITELIST_ADD, description="ホワイトリストに追加します")
 @discord.app_commands.describe(username="ユーザー名")
 async def whitelist_add_command(interaction: discord.Interaction, username: str):
     """ホワイトリストに追加するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
     await interaction.response.send_message(f"{username}をホワイトリストに追加します...")
-    mes = bot_whitelist.whitelist_add(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        session_name=SESSION_NAME,
-        start_server_command=START_SERVER,
-        username=username
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_whitelist.whitelist_add,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            session_name=SESSION_NAME,
+            start_server_command=START_SERVER,
+            username=username
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=WHITELIST_REMOVE, description="ホワイトリストから削除します")
 @discord.app_commands.describe(username="ユーザー名")
 async def whitelist_remove_command(interaction: discord.Interaction, username: str):
     """ホワイトリストから削除するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
     await interaction.response.send_message(f"{username}をホワイトリストから削除します...")
-    mes = bot_whitelist.whitelist_remove(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        session_name=SESSION_NAME,
-        start_server_command=START_SERVER,
-        username=username
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_whitelist.whitelist_remove,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            session_name=SESSION_NAME,
+            start_server_command=START_SERVER,
+            username=username
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=WHITELIST_LIST, description="ホワイトリストを表示します")
 async def whitelist_list_command(interaction: discord.Interaction):
     """ホワイトリストを表示するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
     await interaction.response.send_message("ホワイトリストを表示します...")
-    mes = bot_whitelist.whitelist_list(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        minecraft_server_dir_path=MINECRAFT_SERVER_DIR_PATH
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_whitelist.whitelist_list,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            minecraft_server_dir_path=MINECRAFT_SERVER_DIR_PATH
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=CREATE_BACKUP, description="マイクラサーバーのバックアップを作成します")
 async def create_backup_command(interaction: discord.Interaction):
     """マイクラサーバーのバックアップを作成するコマンド"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
+    
     await interaction.response.send_message("マイクラサーバーのバックアップを作成します...")
-    mes = bot_backup.back_up_minecraft_server(
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        session_name=SESSION_NAME,
-        server_path=MINECRAFT_SERVER_DIR_PATH,
-        backup_path=MINECRAFT_BACKUP_DIR_PATH
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_backup.back_up_minecraft_server,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            session_name=SESSION_NAME,
+            server_path=MINECRAFT_SERVER_DIR_PATH,
+            backup_path=MINECRAFT_BACKUP_DIR_PATH
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 @bot.tree.command(name=UPDATE_SERVER, description="マイクラサーバーをアップデートします", guild=discord.Object(id=1312576908805799946))
@@ -136,6 +173,10 @@ async def update_server_command(
     create_backup: discord.app_commands.Choice[str] = None
 ):
     """マイクラサーバーをアップデートします"""
+    if server_operation_lock.locked():
+        await interaction.response.send_message("別の処理が実行中です。処理完了後にお試しください。")
+        return
+    
     await interaction.response.send_message(f"サーバーをバージョン {version} にアップデートします... 処理中のため応答が遅れる場合があります")
     
     # create_backup がNoneの場合、デフォルトで True
@@ -148,17 +189,18 @@ async def update_server_command(
     create_backup_bool = create_backup_value.lower() in ('true', 'yes', '1')
     
     # バックグラウンドでアップデート関数を実行
-    mes = await asyncio.to_thread(
-        bot_update.update_minecraft_server,
-        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
-        session_name=SESSION_NAME,
-        server_path=MINECRAFT_SERVER_DIR_PATH,
-        server_version=version,
-        create_backup=create_backup_bool,
-        backup_path=MINECRAFT_BACKUP_DIR_PATH if create_backup_bool else None,
-    )
-    print(mes)
-    await interaction.followup.send(mes)
+    async with server_operation_lock:
+        mes = await asyncio.to_thread(
+            bot_update.update_minecraft_server,
+            minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+            session_name=SESSION_NAME,
+            server_path=MINECRAFT_SERVER_DIR_PATH,
+            server_version=version,
+            create_backup=create_backup_bool,
+            backup_path=MINECRAFT_BACKUP_DIR_PATH if create_backup_bool else None,
+        )
+        print(mes)
+        await interaction.followup.send(mes)
 
 
 # 起動時にコマンド同期
