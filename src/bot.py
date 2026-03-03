@@ -3,7 +3,7 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import os
 
-import minecraft_server_updater
+import bot_backup
 import bot_start
 import bot_stop
 import bot_whitelist
@@ -102,11 +102,13 @@ async def whitelist_list_command(interaction: discord.Interaction):
     await interaction.followup.send(mes)
 
 
-@bot.tree.command(name=CREATE_BACKUP, description="マイクラサーバーのバックアップを作成します", guild=discord.Object(id=1312576908805799946))
+@bot.tree.command(name=CREATE_BACKUP, description="マイクラサーバーのバックアップを作成します")
 async def create_backup_command(interaction: discord.Interaction):
     """マイクラサーバーのバックアップを作成するコマンド"""
     await interaction.response.send_message("マイクラサーバーのバックアップを作成します...")
-    mes = minecraft_server_updater.back_up_minecraft_server(
+    mes = bot_backup.back_up_minecraft_server(
+        minecraft_controll_account=MINECRAFT_CONTROLL_ACCOUNT,
+        session_name=SESSION_NAME,
         server_path=MINECRAFT_SERVER_DIR_PATH,
         backup_path=MINECRAFT_BACKUP_DIR_PATH
     )
@@ -117,7 +119,7 @@ async def create_backup_command(interaction: discord.Interaction):
 # 起動時にコマンド同期
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    await bot.tree.sync(guild=discord.Object(id=1312576908805799946))  # コマンドを特定のサーバーに同期
     print(f"{bot.user}としてDiscordにログインしました")
 
 
