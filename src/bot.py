@@ -156,7 +156,7 @@ async def create_backup_command(interaction: discord.Interaction):
         await interaction.followup.send(mes)
 
 
-@bot.tree.command(name=UPDATE_SERVER, description="マイクラサーバーをアップデートします", guild=discord.Object(id=1312576908805799946))
+@bot.tree.command(name=UPDATE_SERVER, description="マイクラサーバーをアップデートします")
 @discord.app_commands.describe(
     version="サーバーバージョン",
     create_backup="アップデート前にバックアップを作成するか"
@@ -206,7 +206,7 @@ async def update_server_command(
 # 起動時にコマンド同期
 @bot.event
 async def on_ready():
-    await bot.tree.sync(guild=discord.Object(id=1312576908805799946))  # コマンドを特定のサーバーに同期
+    await bot.tree.sync()  # コマンドを特定のサーバーに同期
     print(f"{bot.user}としてDiscordにログインしました")
 
 
