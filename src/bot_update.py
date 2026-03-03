@@ -13,7 +13,6 @@ def update_minecraft_server(
     create_backup: bool = True,
     backup_path: str = None,
     backup_name: str = None,
-    server_url_template: str = None,
 ) -> str:
     """
     Minecraftサーバーをアップデートする関数
@@ -26,7 +25,6 @@ def update_minecraft_server(
         create_backup: アップデート前にバックアップを作成するか（デフォルト: True）
         backup_path: バックアップ先のパス（create_backup=Trueの場合に使用）
         backup_name: バックアップファイル名
-        server_url_template: サーバーダウンロードURLテンプレート（デフォルト: Bedrock公式）
     
     Returns:
         処理結果のメッセージ
@@ -40,8 +38,7 @@ def update_minecraft_server(
             return returned_message
         
         # デフォルトURLテンプレート（Minecraft Bedrock Edition）
-        if server_url_template is None:
-            server_url_template = f"https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-{server_version}.zip"
+        server_source_url = f"https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-{server_version}.zip"
         
         # バックアップを実行
         if create_backup:
@@ -66,7 +63,7 @@ def update_minecraft_server(
             
             # wgetでダウンロード
             print(f"サーバーパッケージをダウンロード中 ({server_version})...")
-            download_command = f"sudo -u {minecraft_controll_account} wget -O {zip_file} '{server_url_template}'"
+            download_command = f"sudo -u {minecraft_controll_account} wget -O {zip_file} '{server_source_url}'"
             result = subprocess.run(download_command, shell=True, capture_output=True)
             
             if result.returncode != 0:
