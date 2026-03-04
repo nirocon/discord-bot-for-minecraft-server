@@ -3,7 +3,7 @@ import os
 import tempfile
 import re
 from bot_backup import back_up_minecraft_server
-from bot_lib import run_logged
+from bot_lib import run_logged, check_screen_session
 
 
 def update_minecraft_server(
@@ -36,6 +36,11 @@ def update_minecraft_server(
         # バージョン形式チェック: 自然数.自然数.自然数.自然数
         if not re.match(r"^\d+\.\d+\.\d+\.\d+$", server_version):
             returned_message += "バージョン文字列が不正です。形式は N.N.N.N のような自然数4つをドットで区切ってください。例: 1.2.3.4\n"
+            return returned_message
+        
+        # サーバーが起動しているか確認
+        if check_screen_session(minecraft_controll_account, session_name):
+            returned_message += "Minecraftサーバーが起動中のため、アップデートはできません。先にサーバーを停止してください。\n"
             return returned_message
         
         # デフォルトURLテンプレート（Minecraft Bedrock Edition）
