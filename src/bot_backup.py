@@ -1,6 +1,6 @@
 import subprocess
 import time
-from bot_lib import check_screen_session
+from bot_lib import check_screen_session, run_logged
 
 
 def back_up_minecraft_server(
@@ -20,18 +20,18 @@ def back_up_minecraft_server(
         
         # マイクラサーバーディレクトリが存在するか確認
         command_check_dir = f"sudo -u {minecraft_controll_account} test -d {server_path}"
-        process_return = subprocess.run(command_check_dir, shell=True)
+        process_return = run_logged(command_check_dir)
         if process_return.returncode != 0:
             returned_message += "マイクラサーバーディレクトリが存在しません。サーバー管理者に確認してください。\n"
             return returned_message
         
         # バックアップの保存先のディレクトリが存在するか確認
         command_check_dir = f"sudo -u {minecraft_controll_account} test -d {backup_path}"
-        process_return = subprocess.run(command_check_dir, shell=True)
+        process_return = run_logged(command_check_dir)
         if process_return.returncode != 0:
             returned_message += f"バックアップの保存先のディレクトリが存在しません。ディレクトリを新規作成して保存します。\n"
             command_create_dir = f"sudo -u {minecraft_controll_account} mkdir -p {backup_path}"
-            subprocess.run(command_create_dir, check=True, shell=True)
+            run_logged(command_create_dir, check=True)
 
         # 日時を取得、バックアップファイル名を作成
         timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -48,7 +48,7 @@ def back_up_minecraft_server(
         # バックアップを作成するコマンドを実行
         print(f"バックアップ({backup_path})を作成中...")
         command = f"sudo -u {minecraft_controll_account} tar -zcf {backup_path} {server_path}"
-        subprocess.run(command, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        run_logged(command, check=True)  # tar の出力はログに残る
 
         returned_message += f"バックアップを作成しました！\n"
         return returned_message

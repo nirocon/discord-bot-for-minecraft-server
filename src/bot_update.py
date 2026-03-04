@@ -3,6 +3,7 @@ import os
 import tempfile
 import re
 from bot_backup import back_up_minecraft_server
+from bot_lib import run_logged
 
 
 def update_minecraft_server(
@@ -64,7 +65,7 @@ def update_minecraft_server(
             # wgetでダウンロード
             print(f"サーバーパッケージをダウンロード中 ({server_version})...")
             download_command = f"sudo -u {minecraft_controll_account} wget -O {zip_file} '{server_source_url}'"
-            result = subprocess.run(download_command, shell=True, capture_output=True)
+            result = run_logged(download_command, capture_output=True)
             
             if result.returncode != 0:
                 returned_message += "サーバーパッケージのダウンロードに失敗しました。バージョンを確認してください。\n"
@@ -72,7 +73,7 @@ def update_minecraft_server(
             
             # ファイルが存在するか確認
             check_command = f"sudo -u {minecraft_controll_account} test -f {zip_file}"
-            if subprocess.run(check_command, shell=True).returncode != 0:
+            if run_logged(check_command).returncode != 0:
                 returned_message += "ダウンロードされたファイルが見つかりません。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
             
@@ -83,7 +84,7 @@ def update_minecraft_server(
             # unzipで展開
             print("サーバーパッケージを展開中...")
             extract_command = f"sudo -u {minecraft_controll_account} unzip -q -o {zip_file} -d {extracted_dir}"
-            if subprocess.run(extract_command, shell=True).returncode != 0:
+            if run_logged(extract_command).returncode != 0:
                 returned_message += "サーバーパッケージの展開に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
             
@@ -93,7 +94,7 @@ def update_minecraft_server(
             
             # 既に-oldが存在する場合は削除
             remove_old_command = f"sudo -u {minecraft_controll_account} rm -rf {old_server_path}"
-            subprocess.run(remove_old_command, shell=True)
+            run_logged(remove_old_command)
             
             # サーバーフォルダをリネーム
             rename_command = f"sudo -u {minecraft_controll_account} mv {server_path} {old_server_path}"
@@ -103,14 +104,14 @@ def update_minecraft_server(
             
             # 新しいサーバーフォルダを作成
             mkdir_command = f"sudo -u {minecraft_controll_account} mkdir -p {server_path}"
-            if subprocess.run(mkdir_command, shell=True).returncode != 0:
+            if run_logged(mkdir_command).returncode != 0:
                 returned_message += "新しいサーバーフォルダの作成に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
             
             # 展開したファイルを新しいサーバーフォルダにコピー
             print("新しいサーバーパッケージをインストール中...")
             copy_extracted_command = f"sudo -u {minecraft_controll_account} cp -r {extracted_dir}/* {server_path}/"
-            if subprocess.run(copy_extracted_command, shell=True).returncode != 0:
+            if run_logged(copy_extracted_command).returncode != 0:
                 returned_message += "新しいパッケージのコピーに失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
             
@@ -129,16 +130,16 @@ def update_minecraft_server(
                 copy_command = f"sudo -u {minecraft_controll_account} cp {old_file} {new_file}"
                 # ファイルが存在しない場合はスキップ
                 check_file_command = f"sudo -u {minecraft_controll_account} test -f {old_file}"
-                if subprocess.run(check_file_command, shell=True).returncode == 0:
-                    subprocess.run(copy_command, shell=True)
+                if run_logged(check_file_command).returncode == 0:
+                    run_logged(copy_command)
             
             # worldsディレクトリをコピー
             old_worlds = os.path.join(old_server_path, "worlds")
             new_worlds = os.path.join(server_path, "worlds")
             copy_worlds_command = f"sudo -u {minecraft_controll_account} cp -r {old_worlds} {new_worlds}"
             check_worlds_command = f"sudo -u {minecraft_controll_account} test -d {old_worlds}"
-            if subprocess.run(check_worlds_command, shell=True).returncode == 0:
-                if subprocess.run(copy_worlds_command, shell=True).returncode != 0:
+            if run_logged(check_worlds_command).returncode == 0:
+                if run_logged(copy_worlds_command).returncode != 0:
                     returned_message += "ワールドデータのコピーに失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                     return returned_message
         

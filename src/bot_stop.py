@@ -1,5 +1,5 @@
 import subprocess
-from bot_lib import check_screen_session
+from bot_lib import check_screen_session, run_logged
 
 
 def stop_minecraft_server(
@@ -13,8 +13,11 @@ def stop_minecraft_server(
             return f"Minecraftサーバーは起動していません\n`/{start_server_command}`で起動してください"
 
         command = f"sudo -u {minecraft_controll_account} screen -S {session_name} -p 0 -X stuff 'stop\n'"
-        subprocess.run(command, check=True, shell=True)
-        return "Minecraftサーバーを停止しました!"
+        result = run_logged(command, check=True)
+        if result.returncode == 0:
+            return "Minecraftサーバーを停止しました!"
+        else:
+            return "サーバー停止時にエラー"
     except Exception as e:
         print(e)
         return "サーバー停止時にエラー"

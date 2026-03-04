@@ -1,6 +1,6 @@
 import subprocess
 import json
-from bot_lib import check_screen_session
+from bot_lib import check_screen_session, run_logged
 
 
 def whitelist_add(
@@ -15,8 +15,11 @@ def whitelist_add(
             return f"Minecraftサーバーは起動していません\n`/{start_server_command}`で起動してください"
 
         command = f"sudo -u {minecraft_controll_account} screen -S {session_name} -p 0 -X stuff 'whitelist add {username}\n'"
-        subprocess.run(command, check=True, shell=True)
-        return f"{username}をホワイトリストに追加しました!"
+        result = run_logged(command, check=True)
+        if result.returncode == 0:
+            return f"{username}をホワイトリストに追加しました!"
+        else:
+            return "ホワイトリスト追加時にエラー"
     except Exception as e:
         print(e)
         return "ホワイトリスト追加時にエラー"
@@ -34,8 +37,11 @@ def whitelist_remove(
             return f"Minecraftサーバーは起動していません\n`/{start_server_command}`で起動してください"
 
         command = f"sudo -u {minecraft_controll_account} screen -S {session_name} -p 0 -X stuff 'whitelist remove {username}\n'"
-        subprocess.run(command, check=True, shell=True)
-        return f"{username}をホワイトリストから削除しました!"
+        result = run_logged(command, check=True)
+        if result.returncode == 0:
+            return f"{username}をホワイトリストから削除しました!"
+        else:
+            return "ホワイトリスト削除時にエラー"
     except Exception as e:
         print(e)
         return "ホワイトリスト削除時にエラー"
@@ -47,7 +53,9 @@ def whitelist_list(
 ):
     """ホワイトリストを表示する関数"""
     try:
-        whitelist_raw = subprocess.getoutput(f"sudo -u {minecraft_controll_account} cat {minecraft_server_dir_path}/allowlist.json")
+        # キャプチャしつつログにも残す
+        result = run_logged(f"sudo -u {minecraft_controll_account} cat {minecraft_server_dir_path}/allowlist.json", capture_output=True)
+        whitelist_raw = result.stdout if result.stdout is not None else ""
         whitelist = json.loads(whitelist_raw)
 
         # whitelistが空の場合
