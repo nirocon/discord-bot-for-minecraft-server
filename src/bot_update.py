@@ -68,7 +68,8 @@ def update_minecraft_server(
             # 一時ディレクトリの権限を調整
             try:
                 os.chmod(temp_dir, 0o777)
-            except Exception:
+            except Exception as e:
+                print(f"一時ディレクトリの権限変更に失敗しました: {e}")
                 pass
 
             zip_file = os.path.join(temp_dir, f"bedrock-server-{server_version}.zip")
@@ -91,6 +92,11 @@ def update_minecraft_server(
             # 展開ディレクトリ
             extracted_dir = os.path.join(temp_dir, "extracted")
             os.makedirs(extracted_dir, exist_ok=True)
+            try:
+                os.chmod(extracted_dir, 0o777)
+            except Exception as e:
+                print(f"展開ディレクトリの権限変更に失敗しました: {e}")
+                pass
             
             # unzipで展開
             print("サーバーパッケージを展開中...")
