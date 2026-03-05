@@ -3,7 +3,7 @@ import os
 import tempfile
 import re
 from bot_backup import back_up_minecraft_server
-from bot_lib import run_logged
+from bot_lib import run_logged, check_screen_session
 
 
 def update_minecraft_server(
@@ -33,6 +33,11 @@ def update_minecraft_server(
     try:
         returned_message = ""
 
+        # サーバーが起動しているか確認
+        if check_screen_session(minecraft_controll_account, session_name):
+            returned_message += "Minecraftサーバーが起動中のため、アップデートはできません。先にサーバーを停止してください。\n"
+            return returned_message
+        
         # バージョン形式チェック: 自然数.自然数.自然数.自然数
         if not re.match(r"^\d+\.\d+\.\d+\.\d+$", server_version):
             returned_message += "バージョン文字列が不正です。形式は N.N.N.N のような自然数4つをドットで区切ってください。例: 1.2.3.4\n"
@@ -60,6 +65,13 @@ def update_minecraft_server(
         
         # 一時ディレクトリにアーカイブをダウンロード
         with tempfile.TemporaryDirectory() as temp_dir:
+            # 一時ディレクトリの権限を調整
+            try:
+                os.chmod(temp_dir, 0o777)
+            except Exception as e:
+                print(f"一時ディレクトリの権限変更に失敗しました: {e}")
+                pass
+
             zip_file = os.path.join(temp_dir, f"bedrock-server-{server_version}.zip")
             
             # wgetでダウンロード
@@ -80,6 +92,11 @@ def update_minecraft_server(
             # 展開ディレクトリ
             extracted_dir = os.path.join(temp_dir, "extracted")
             os.makedirs(extracted_dir, exist_ok=True)
+            try:
+                os.chmod(extracted_dir, 0o777)
+            except Exception as e:
+                print(f"展開ディレクトリの権限変更に失敗しました: {e}")
+                pass
             
             # unzipで展開
             print("サーバーパッケージを展開中...")
@@ -87,7 +104,10 @@ def update_minecraft_server(
             if run_logged(extract_command).returncode != 0:
                 returned_message += "サーバーパッケージの展開に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
-            
+
+            # 展開後、extracted_dir 以下全てにアクセス権を与える
+            print(run_logged(f"sudo -u {minecraft_controll_account} chmod -R 777 {extracted_dir}"))
+
             # 旧サーバーをリネーム
             old_server_path = f"{server_path}-old"
             print(f"旧サーバーを {old_server_path} にバックアップ中...")
@@ -132,7 +152,9 @@ def update_minecraft_server(
                 check_file_command = f"sudo -u {minecraft_controll_account} test -f {old_file}"
                 if run_logged(check_file_command).returncode == 0:
                     run_logged(copy_command)
-            
+                else:
+                    print(f"{file_name}が見つかりませんでした。コピーをスキップします。")
+
             # worldsディレクトリをコピー
             old_worlds = os.path.join(old_server_path, "worlds")
             new_worlds = os.path.join(server_path, "worlds")
