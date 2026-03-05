@@ -43,7 +43,6 @@ def update_minecraft_server(
             returned_message += "バージョン文字列が不正です。形式は N.N.N.N のような自然数4つをドットで区切ってください。例: 1.2.3.4\n"
             return returned_message
         
-        
         # デフォルトURLテンプレート（Minecraft Bedrock Edition）
         server_source_url = f"https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-{server_version}.zip"
         
@@ -66,6 +65,12 @@ def update_minecraft_server(
         
         # 一時ディレクトリにアーカイブをダウンロード
         with tempfile.TemporaryDirectory() as temp_dir:
+            # 一時ディレクトリの権限を調整
+            try:
+                os.chmod(temp_dir, 0o777)
+            except Exception:
+                pass
+
             zip_file = os.path.join(temp_dir, f"bedrock-server-{server_version}.zip")
             
             # wgetでダウンロード
