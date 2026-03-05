@@ -104,7 +104,10 @@ def update_minecraft_server(
             if run_logged(extract_command).returncode != 0:
                 returned_message += "サーバーパッケージの展開に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
                 return returned_message
-            
+
+            # 展開後、extracted_dir 以下全てにアクセス権を与える
+            print(run_logged(f"sudo -u {minecraft_controll_account} chmod -R 777 {extracted_dir}"))
+
             # 旧サーバーをリネーム
             old_server_path = f"{server_path}-old"
             print(f"旧サーバーを {old_server_path} にバックアップ中...")
@@ -149,7 +152,9 @@ def update_minecraft_server(
                 check_file_command = f"sudo -u {minecraft_controll_account} test -f {old_file}"
                 if run_logged(check_file_command).returncode == 0:
                     run_logged(copy_command)
-            
+                else:
+                    print(f"{file_name}が見つかりませんでした。コピーをスキップします。")
+
             # worldsディレクトリをコピー
             old_worlds = os.path.join(old_server_path, "worlds")
             new_worlds = os.path.join(server_path, "worlds")
