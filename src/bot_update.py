@@ -9,20 +9,98 @@ from pathlib import Path
 from bot_backup import back_up_minecraft_server
 from bot_lib import check_screen_session
 
+BOT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "bot.config"
 
-# 引き継ぐ追加パックを指定します。
-# 新しくアドオンを追加したときは、ここにも追加してください。
-CUSTOM_PACKS = (
-    "behavior_packs/VeinCapitator_BP",
-    # "resource_packs/追加パックのフォルダー名",
-    # "development_behavior_packs/開発用パック名",
-)
+PACK_ROOTS = {
+    "behavior_packs",
+    "resource_packs",
+    "development_behavior_packs",
+    "development_resource_packs",
+}
 
-CONFIG_FILES = (
-    "server.properties",
-    "permissions.json",
-    "allowlist.json",
-)
+
+def _load_update_config(server):
+    with BOT_CONFIG_PATH.open("r", encoding="utf-8-sig") as file:
+        config = json.load(file)
+
+    update = config.get("update")
+    if not isinstance(update, dict):
+        raise ValueError("bot.config: update を指定してください。")
+
+    unknown = set(update) - {"packs", "settings"}
+    if unknown:
+        raise ValueError(f"bot.config: 未対応の項目があります: {sorted(unknown)}")
+
+    result = {}
+
+    for category in ("packs", "settings"):
+        entries = update.get(category)
+        if not isinstance(entries, list):
+            raise ValueError(f"bot.config: {category} は配列で指定してください。")
+
+        paths = []
+        seen = set()
+
+        for entry in entries:
+            if not isinstance(entry, str) or not entry.strip():
+                raise ValueError(f"bot.config: {category} に空のパスがあります。")
+
+            relative = Path(entry)
+
+            if (
+                relative.is_absolute()
+                or ".." in relative.parts
+                or "\\" in entry
+                or ":" in entry
+                or not relative.parts
+            ):
+                raise ValueError(
+                    f"bot.config: 相対パスを / 区切りで指定してください: {entry}"
+                )
+
+            source = server / relative
+
+            # シンボリックリンクによるサーバー外への参照を防ぐ。
+            if not source.resolve().is_relative_to(server.resolve()):
+                raise ValueError(f"bot.config: サーバー外を参照しています: {entry}")
+
+            if category == "packs":
+                if len(relative.parts) != 2 or relative.parts[0] not in PACK_ROOTS:
+                    raise ValueError(
+                        f"bot.config: パックはルート/パック名で指定してください: {entry}"
+                    )
+                if not source.is_dir() or not (source / "manifest.json").is_file():
+                    raise ValueError(f"bot.config: パックが見つかりません: {entry}")
+            else:
+                # 実行ファイルや標準パックを設定として上書きしない。
+                if not (
+                    relative.as_posix()
+                    in {
+                        "server.properties",
+                        "permissions.json",
+                        "allowlist.json",
+                        "packetlimitconfig.json",
+                    }
+                    or (relative.parts[0] == "config" and len(relative.parts) >= 2)
+                ):
+                    raise ValueError(
+                        f"bot.config: 設定ファイルとして指定できません: {entry}"
+                    )
+                if not source.is_file():
+                    raise ValueError(
+                        f"bot.config: 設定ファイルが見つかりません: {entry}"
+                    )
+
+            normalized = relative.as_posix()
+            if normalized in seen:
+                raise ValueError(f"bot.config: 指定が重複しています: {entry}")
+            seen.add(normalized)
+
+            paths.append(relative)
+
+        result[category] = paths
+
+    return result
 
 
 def _run_as(account, *args):
@@ -34,9 +112,7 @@ def _run_as(account, *args):
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
-        raise RuntimeError(
-            f"{args[0]} が失敗しました: {detail or '詳細なし'}"
-        )
+        raise RuntimeError(f"{args[0]} が失敗しました: {detail or '詳細なし'}")
     return result
 
 
@@ -68,7 +144,8 @@ def _validate_world_packs(server):
         raise RuntimeError("移行先に worlds フォルダーがありません。")
 
     world_dirs = [
-        world for world in worlds.iterdir()
+        world
+        for world in worlds.iterdir()
         if world.is_dir() and (world / "level.dat").is_file()
     ]
     if not world_dirs:
@@ -94,34 +171,34 @@ def _validate_world_packs(server):
     for world in world_dirs:
         # ワールド内に配置されたパックにも対応
         available = dict(manifests)
-        available.update(collect([
-            world / "behavior_packs",
-            world / "resource_packs",
-        ]))
+        available.update(
+            collect(
+                [
+                    world / "behavior_packs",
+                    world / "resource_packs",
+                ]
+            )
+        )
         checked = set()
 
         def check_pack(pack_id, version, subpack=None):
             key = (pack_id.lower(), tuple(version))
             if key not in available:
                 raise RuntimeError(
-                    f"{world.name}: パック不足 "
-                    f"UUID={pack_id}, version={list(version)}"
+                    f"{world.name}: パック不足 UUID={pack_id}, version={list(version)}"
                 )
 
             manifest, folder = available[key]
 
             if subpack:
                 declared = {
-                    entry["folder_name"]
-                    for entry in manifest.get("subpacks", [])
+                    entry["folder_name"] for entry in manifest.get("subpacks", [])
                 }
                 if (
                     subpack not in declared
                     or not (folder / "subpacks" / subpack).is_dir()
                 ):
-                    raise RuntimeError(
-                        f"{world.name}: サブパック不足 {subpack}"
-                    )
+                    raise RuntimeError(f"{world.name}: サブパック不足 {subpack}")
 
             if key in checked:
                 return
@@ -167,10 +244,7 @@ def update_minecraft_server(
 
     try:
         if check_screen_session(account, session_name):
-            return (
-                "Minecraftサーバーが起動中です。"
-                "先にサーバーを停止してください。\n"
-            )
+            return "Minecraftサーバーが起動中です。先にサーバーを停止してください。\n"
 
         if not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", server_version):
             return "バージョンは N.N.N.N の形式で指定してください。\n"
@@ -178,6 +252,8 @@ def update_minecraft_server(
         server = Path(server_path).resolve()
         if not server.is_dir() or server == Path(server.anchor):
             return "サーバーフォルダーの指定が不正です。\n"
+
+        update_config = _load_update_config(server)
 
         # 既存のバックアップ関数はシェルコマンドを使うため、
         # 渡すパス・ユーザー名をここで引用します。
@@ -198,8 +274,7 @@ def update_minecraft_server(
             # bot_backup.pyを変更しないため、現在の成功文で判定。
             if "バックアップを作成しました！" not in result:
                 messages.append(
-                    "バックアップの成功を確認できないため、"
-                    "更新を中止しました。\n"
+                    "バックアップの成功を確認できないため、更新を中止しました。\n"
                 )
                 return "".join(messages)
 
@@ -232,9 +307,7 @@ def update_minecraft_server(
             _run_as(account, "unzip", "-q", archive, "-d", stage)
 
         if not (stage / "bedrock_server").is_file():
-            raise RuntimeError(
-                "展開したパッケージに bedrock_server がありません。"
-            )
+            raise RuntimeError("展開したパッケージに bedrock_server がありません。")
 
         # 新パッケージに worlds が含まれていた場合も、
         # worlds/worlds という入れ子を作らずに移行。
@@ -252,32 +325,31 @@ def update_minecraft_server(
             raise RuntimeError("旧サーバーに worlds がありません。")
         _copy_as(account, old_worlds, stage / "worlds")
 
-        for name in CONFIG_FILES:
-            source = server / name
-            if source.is_file():
-                _copy_as(account, source, stage / name)
+        # 指定した設定ファイルを移行する。
+        for relative in update_config["settings"]:
+            source = server / relative
+            destination = stage / relative
 
-        # 新版の標準パックを上書きせず、指定した追加パックを移行。
-        for relative in CUSTOM_PACKS:
-            relative_path = Path(relative)
-            if relative_path.is_absolute() or ".." in relative_path.parts:
+            if destination.exists() and not destination.is_file():
                 raise RuntimeError(
-                    f"追加パックの指定が不正です: {relative}"
+                    f"設定ファイルのコピー先がファイルではありません: {relative}"
                 )
 
-            source = server / relative_path
-            destination = stage / relative_path
+            _copy_as(account, source, destination)
+            messages.append(f"設定を引き継ぎました: {relative}\n")
 
-            if not source.is_dir():
-                raise RuntimeError(
-                    f"引き継ぐ追加パックが見つかりません: {relative}"
-                )
+        # 指定した追加パックを移行する。
+        for relative in update_config["packs"]:
+            source = server / relative
+            destination = stage / relative
+
             if destination.exists():
                 raise RuntimeError(
                     f"新版パッケージと追加パックが競合します: {relative}"
                 )
 
             _copy_as(account, source, destination)
+            messages.append(f"パックを引き継ぎました: {relative}\n")
 
         # config/defaultは新版を使用。
         # スクリプトUUID別の独自設定フォルダーを引き継ぐ。
@@ -289,9 +361,7 @@ def update_minecraft_server(
 
                 destination = stage / "config" / source.name
                 if destination.exists():
-                    raise RuntimeError(
-                        f"独自configが新版と競合します: {source.name}"
-                    )
+                    raise RuntimeError(f"独自configが新版と競合します: {source.name}")
                 _copy_as(account, source, destination)
 
         _validate_world_packs(stage)
@@ -340,9 +410,7 @@ def update_minecraft_server(
     except Exception as error:
         messages.append(f"更新を中止しました: {error}\n")
         if stage is not None:
-            messages.append(
-                f"確認用の作業フォルダーを残しています: {stage}\n"
-            )
+            messages.append(f"確認用の作業フォルダーを残しています: {stage}\n")
         if retired is not None and retired.exists():
             messages.append(f"旧サーバーの保存先: {retired}\n")
 
