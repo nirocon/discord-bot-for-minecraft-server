@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Minecraftサーバー管理Discord Botを起動するスクリプト
 
@@ -6,14 +7,17 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Python仮想環境を準備
+VENV_PYTHON="$PROJECT_ROOT/venv/bin/python"
 if [ ! -d "$PROJECT_ROOT/venv" ]; then
     echo "仮想環境を作成しています..."
     python3 -m venv "$PROJECT_ROOT/venv"
 fi
 
-# 仮想環境をアクティベート
-# shellcheck source=/dev/null
-source "$PROJECT_ROOT/venv/bin/activate"
+# 移動前のパスがactivateに残っていても、現在の仮想環境を直接使う
+if [ ! -x "$VENV_PYTHON" ]; then
+    echo "仮想環境のPythonが見つかりません: $VENV_PYTHON" >&2
+    exit 1
+fi
 
 # .env ファイルが存在するか確認
 if [ ! -f "$PROJECT_ROOT/.env" ]; then
@@ -22,11 +26,10 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # 依存パッケージをインストール
-pip install --upgrade pip
-pip install -r "$PROJECT_ROOT/requirements.txt"
+"$VENV_PYTHON" -m pip install -r "$PROJECT_ROOT/requirements.txt"
 
 # srcディレクトリに移動してbot.pyを実行
 cd "$PROJECT_ROOT/src"
 
 # bot.pyを実行
-python bot.py
+exec "$VENV_PYTHON" bot.py
