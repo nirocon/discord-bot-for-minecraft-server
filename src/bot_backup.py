@@ -1,7 +1,7 @@
 import subprocess
 import time
 from bot_lib import check_screen_session, run_logged
-
+import shlex
 
 def back_up_minecraft_server(
     minecraft_controll_account: str,
@@ -12,6 +12,8 @@ def back_up_minecraft_server(
 ) -> str:
     """Minecraftサーバーのバックアップを作成する関数"""
     try:
+        def shell_command(*args):
+            return shlex.join([str(arg) for arg in args])
         returned_message = ""
         # サーバーの起動を確認
         if check_screen_session(minecraft_controll_account, session_name):
@@ -19,14 +21,20 @@ def back_up_minecraft_server(
             return returned_message
         
         # マイクラサーバーディレクトリが存在するか確認
-        command_check_dir = f"sudo -u {minecraft_controll_account} test -d {server_path}"
+        command_check_dir = shell_command(
+            "sudo", "-u", minecraft_controll_account,
+            "test", "-d", server_path,
+        )
         process_return = run_logged(command_check_dir)
         if process_return.returncode != 0:
             returned_message += "マイクラサーバーディレクトリが存在しません。サーバー管理者に確認してください。\n"
             return returned_message
         
         # バックアップの保存先のディレクトリが存在するか確認
-        command_check_dir = f"sudo -u {minecraft_controll_account} test -d {backup_path}"
+        command_check_dir = shell_command(
+            "sudo", "-u", minecraft_controll_account,
+            "test", "-d", backup_path,
+        )
         process_return = run_logged(command_check_dir)
         if process_return.returncode != 0:
             returned_message += f"バックアップの保存先のディレクトリが存在しません。ディレクトリを新規作成して保存します。\n"
@@ -47,7 +55,10 @@ def back_up_minecraft_server(
         
         # バックアップを作成するコマンドを実行
         print(f"バックアップ({backup_path})を作成中...")
-        command = f"sudo -u {minecraft_controll_account} tar -zcf {backup_path} {server_path}"
+        command = shell_command(
+            "sudo", "-u", minecraft_controll_account,
+            "tar", "-zcf", backup_path, server_path,
+        )
         run_logged(command, check=True)  # tar の出力はログに残る
 
         returned_message += f"バックアップを作成しました！\n"

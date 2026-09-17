@@ -1,9 +1,154 @@
-import subprocess
+import json
 import os
-import tempfile
 import re
+import subprocess
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
 from bot_backup import back_up_minecraft_server
-from bot_lib import run_logged, check_screen_session
+from bot_lib import check_screen_session
+
+
+# 引き継ぐ追加パックを指定します。
+# 新しくアドオンを追加したときは、ここにも追加してください。
+CUSTOM_PACKS = (
+    "behavior_packs/VeinCapitator_BP",
+    # "resource_packs/追加パックのフォルダー名",
+    # "development_behavior_packs/開発用パック名",
+)
+
+CONFIG_FILES = (
+    "server.properties",
+    "permissions.json",
+    "allowlist.json",
+)
+
+
+def _run_as(account, *args):
+    """シェルを経由せず、サーバー実行ユーザーとして実行する。"""
+    result = subprocess.run(
+        ["sudo", "-u", account, "--", *map(str, args)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(
+            f"{args[0]} が失敗しました: {detail or '詳細なし'}"
+        )
+    return result
+
+
+def _copy_as(account, source, destination):
+    """ディレクトリのコピー先は、存在しない場所を指定する。"""
+    _run_as(account, "mkdir", "-p", destination.parent)
+    _run_as(account, "cp", "-a", source, destination)
+
+
+def _read_json(path):
+    with path.open("r", encoding="utf-8-sig") as file:
+        return json.load(file)
+
+
+def _validate_world_packs(server):
+    """ワールドが要求するパックと依存パックを検証する。"""
+    manifests = {}
+
+    # サーバー共通パック
+    pack_roots = [
+        server / "behavior_packs",
+        server / "resource_packs",
+        server / "development_behavior_packs",
+        server / "development_resource_packs",
+    ]
+
+    worlds = server / "worlds"
+    if not worlds.is_dir():
+        raise RuntimeError("移行先に worlds フォルダーがありません。")
+
+    world_dirs = [
+        world for world in worlds.iterdir()
+        if world.is_dir() and (world / "level.dat").is_file()
+    ]
+    if not world_dirs:
+        raise RuntimeError("移行先にワールドが見つかりません。")
+
+    def collect(roots):
+        result = {}
+        for root in roots:
+            if not root.is_dir():
+                continue
+            for path in root.glob("*/manifest.json"):
+                manifest = _read_json(path)
+                header = manifest["header"]
+                key = (
+                    header["uuid"].lower(),
+                    tuple(header["version"]),
+                )
+                result[key] = (manifest, path.parent)
+        return result
+
+    manifests.update(collect(pack_roots))
+
+    for world in world_dirs:
+        # ワールド内に配置されたパックにも対応
+        available = dict(manifests)
+        available.update(collect([
+            world / "behavior_packs",
+            world / "resource_packs",
+        ]))
+        checked = set()
+
+        def check_pack(pack_id, version, subpack=None):
+            key = (pack_id.lower(), tuple(version))
+            if key not in available:
+                raise RuntimeError(
+                    f"{world.name}: パック不足 "
+                    f"UUID={pack_id}, version={list(version)}"
+                )
+
+            manifest, folder = available[key]
+
+            if subpack:
+                declared = {
+                    entry["folder_name"]
+                    for entry in manifest.get("subpacks", [])
+                }
+                if (
+                    subpack not in declared
+                    or not (folder / "subpacks" / subpack).is_dir()
+                ):
+                    raise RuntimeError(
+                        f"{world.name}: サブパック不足 {subpack}"
+                    )
+
+            if key in checked:
+                return
+            checked.add(key)
+
+            for dependency in manifest.get("dependencies", []):
+                # UUIDで参照する別パックの存在を確認。
+                # @minecraft/server等のAPI互換性は起動時に確認。
+                if "uuid" in dependency:
+                    check_pack(
+                        dependency["uuid"],
+                        dependency["version"],
+                    )
+
+        for name in (
+            "world_behavior_packs.json",
+            "world_resource_packs.json",
+        ):
+            registration = world / name
+            if not registration.is_file():
+                continue
+            for entry in _read_json(registration):
+                check_pack(
+                    entry["pack_id"],
+                    entry["version"],
+                    entry.get("subpack"),
+                )
 
 
 def update_minecraft_server(
@@ -15,160 +160,190 @@ def update_minecraft_server(
     backup_path: str = None,
     backup_name: str = None,
 ) -> str:
-    """
-    Minecraftサーバーをアップデートする関数
-    
-    Args:
-        minecraft_controll_account: マイクラサーバーを実行しているユーザー名
-        session_name: screenセッション名
-        server_path: サーバーのパス
-        server_version: サーバーバージョン（URLテンプレートに使用）
-        create_backup: アップデート前にバックアップを作成するか（デフォルト: True）
-        backup_path: バックアップ先のパス（create_backup=Trueの場合に使用）
-        backup_name: バックアップファイル名
-    
-    Returns:
-        処理結果のメッセージ
-    """
-    try:
-        returned_message = ""
+    account = minecraft_controll_account
+    messages = []
+    stage = None
+    retired = None
 
-        # サーバーが起動しているか確認
-        if check_screen_session(minecraft_controll_account, session_name):
-            returned_message += "Minecraftサーバーが起動中のため、アップデートはできません。先にサーバーを停止してください。\n"
-            return returned_message
-        
-        # バージョン形式チェック: 自然数.自然数.自然数.自然数
-        if not re.match(r"^\d+\.\d+\.\d+\.\d+$", server_version):
-            returned_message += "バージョン文字列が不正です。形式は N.N.N.N のような自然数4つをドットで区切ってください。例: 1.2.3.4\n"
-            return returned_message
-        
-        # デフォルトURLテンプレート（Minecraft Bedrock Edition）
-        server_source_url = f"https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-{server_version}.zip"
-        
-        # バックアップを実行
+    try:
+        if check_screen_session(account, session_name):
+            return (
+                "Minecraftサーバーが起動中です。"
+                "先にサーバーを停止してください。\n"
+            )
+
+        if not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", server_version):
+            return "バージョンは N.N.N.N の形式で指定してください。\n"
+
+        server = Path(server_path).resolve()
+        if not server.is_dir() or server == Path(server.anchor):
+            return "サーバーフォルダーの指定が不正です。\n"
+
+        # 既存のバックアップ関数はシェルコマンドを使うため、
+        # 渡すパス・ユーザー名をここで引用します。
         if create_backup:
-            if backup_path is None:
-                returned_message += "バックアップパスが指定されていません。\n"
-                return returned_message
-            
-            print("アップデート前にバックアップを作成します...")
-            returned_message += "アップデート前にバックアップを作成します...\n"
-            backup_result = back_up_minecraft_server(
-                minecraft_controll_account=minecraft_controll_account,
+            if not backup_path:
+                return "バックアップ先が指定されていません。\n"
+
+            result = back_up_minecraft_server(
+                minecraft_controll_account=account,
                 session_name=session_name,
-                server_path=server_path,
+                server_path=str(server),
                 backup_path=backup_path,
                 backup_name=backup_name,
             )
-            returned_message += backup_result
-        
-        # 一時ディレクトリにアーカイブをダウンロード
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # 一時ディレクトリの権限を調整
-            try:
-                os.chmod(temp_dir, 0o777)
-            except Exception as e:
-                print(f"一時ディレクトリの権限変更に失敗しました: {e}")
-                pass
 
-            zip_file = os.path.join(temp_dir, f"bedrock-server-{server_version}.zip")
-            
-            # wgetでダウンロード
-            print(f"サーバーパッケージをダウンロード中 ({server_version})...")
-            download_command = f"sudo -u {minecraft_controll_account} wget -O {zip_file} '{server_source_url}'"
-            result = run_logged(download_command, capture_output=True)
-            
-            if result.returncode != 0:
-                returned_message += "サーバーパッケージのダウンロードに失敗しました。バージョンを確認してください。\n"
-                return returned_message
-            
-            # ファイルが存在するか確認
-            check_command = f"sudo -u {minecraft_controll_account} test -f {zip_file}"
-            if run_logged(check_command).returncode != 0:
-                returned_message += "ダウンロードされたファイルが見つかりません。サーバー管理者またはボット開発者に確認してください。\n"
-                return returned_message
-            
-            # 展開ディレクトリ
-            extracted_dir = os.path.join(temp_dir, "extracted")
-            os.makedirs(extracted_dir, exist_ok=True)
-            try:
-                os.chmod(extracted_dir, 0o777)
-            except Exception as e:
-                print(f"展開ディレクトリの権限変更に失敗しました: {e}")
-                pass
-            
-            # unzipで展開
-            print("サーバーパッケージを展開中...")
-            extract_command = f"sudo -u {minecraft_controll_account} unzip -q -o {zip_file} -d {extracted_dir}"
-            if run_logged(extract_command).returncode != 0:
-                returned_message += "サーバーパッケージの展開に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
-                return returned_message
+            messages.append(result)
 
-            # 展開後、extracted_dir 以下全てにアクセス権を与える
-            print(run_logged(f"sudo -u {minecraft_controll_account} chmod -R 777 {extracted_dir}"))
+            # bot_backup.pyを変更しないため、現在の成功文で判定。
+            if "バックアップを作成しました！" not in result:
+                messages.append(
+                    "バックアップの成功を確認できないため、"
+                    "更新を中止しました。\n"
+                )
+                return "".join(messages)
 
-            # 旧サーバーをリネーム
-            old_server_path = f"{server_path}-old"
-            print(f"旧サーバーを {old_server_path} にバックアップ中...")
-            
-            # 既に-oldが存在する場合は削除
-            remove_old_command = f"sudo -u {minecraft_controll_account} rm -rf {old_server_path}"
-            run_logged(remove_old_command)
-            
-            # サーバーフォルダをリネーム
-            rename_command = f"sudo -u {minecraft_controll_account} mv {server_path} {old_server_path}"
-            if subprocess.run(rename_command, shell=True).returncode != 0:
-                returned_message += "旧サーバーのリネームに失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
-                return returned_message
-            
-            # 新しいサーバーフォルダを作成
-            mkdir_command = f"sudo -u {minecraft_controll_account} mkdir -p {server_path}"
-            if run_logged(mkdir_command).returncode != 0:
-                returned_message += "新しいサーバーフォルダの作成に失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
-                return returned_message
-            
-            # 展開したファイルを新しいサーバーフォルダにコピー
-            print("新しいサーバーパッケージをインストール中...")
-            copy_extracted_command = f"sudo -u {minecraft_controll_account} cp -r {extracted_dir}/* {server_path}/"
-            if run_logged(copy_extracted_command).returncode != 0:
-                returned_message += "新しいパッケージのコピーに失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
-                return returned_message
-            
-            # 旧サーバーから設定ファイルと世界データをコピー
-            returned_message += "設定ファイルと世界データをコピー中...\n"
-            
-            files_to_copy = [
-                "server.properties",
-                "permissions.json",
-                "allowlist.json",
-            ]
-            
-            for file_name in files_to_copy:
-                old_file = os.path.join(old_server_path, file_name)
-                new_file = os.path.join(server_path, file_name)
-                copy_command = f"sudo -u {minecraft_controll_account} cp {old_file} {new_file}"
-                # ファイルが存在しない場合はスキップ
-                check_file_command = f"sudo -u {minecraft_controll_account} test -f {old_file}"
-                if run_logged(check_file_command).returncode == 0:
-                    run_logged(copy_command)
-                else:
-                    print(f"{file_name}が見つかりませんでした。コピーをスキップします。")
+        # 一意な作業フォルダーを、正式フォルダーと同じ場所に作成。
+        result = _run_as(
+            account,
+            "mktemp",
+            "-d",
+            str(server.parent / f"{server.name}-new-XXXXXX"),
+        )
+        stage = Path(result.stdout.strip()).resolve()
 
-            # worldsディレクトリをコピー
-            old_worlds = os.path.join(old_server_path, "worlds")
-            new_worlds = os.path.join(server_path, "worlds")
-            copy_worlds_command = f"sudo -u {minecraft_controll_account} cp -r {old_worlds} {new_worlds}"
-            check_worlds_command = f"sudo -u {minecraft_controll_account} test -d {old_worlds}"
-            if run_logged(check_worlds_command).returncode == 0:
-                if run_logged(copy_worlds_command).returncode != 0:
-                    returned_message += "ワールドデータのコピーに失敗しました。サーバー管理者またはボット開発者に確認してください。\n"
-                    return returned_message
-        
-        returned_message += f"サーバーアップデート完了！ (バージョン: {server_version})\n"
-        return returned_message
-        
-    except Exception as e:
-        print(e)
-        returned_message += f"アップデート中にエラーが発生しました。サーバー管理者またはボット開発者に確認してください。\n"
-        return returned_message
+        if stage.parent != server.parent:
+            raise RuntimeError("作業フォルダーの場所が不正です。")
+
+        # 検証時にボットから読み取れるようにする。
+        _run_as(account, "chmod", "755", stage)
+
+        url = (
+            "https://www.minecraft.net/bedrockdedicatedserver/"
+            f"bin-linux/bedrock-server-{server_version}.zip"
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            # sudo先のユーザーがダウンロードできるようにする。
+            os.chmod(temporary, 0o777)
+            archive = Path(temporary) / "server.zip"
+
+            _run_as(account, "wget", "-O", archive, url)
+            _run_as(account, "unzip", "-q", archive, "-d", stage)
+
+        if not (stage / "bedrock_server").is_file():
+            raise RuntimeError(
+                "展開したパッケージに bedrock_server がありません。"
+            )
+
+        # 新パッケージに worlds が含まれていた場合も、
+        # worlds/worlds という入れ子を作らずに移行。
+        packaged_worlds = stage / "worlds"
+        if packaged_worlds.exists():
+            _run_as(
+                account,
+                "mv",
+                packaged_worlds,
+                stage / "_package_worlds",
+            )
+
+        old_worlds = server / "worlds"
+        if not old_worlds.is_dir():
+            raise RuntimeError("旧サーバーに worlds がありません。")
+        _copy_as(account, old_worlds, stage / "worlds")
+
+        for name in CONFIG_FILES:
+            source = server / name
+            if source.is_file():
+                _copy_as(account, source, stage / name)
+
+        # 新版の標準パックを上書きせず、指定した追加パックを移行。
+        for relative in CUSTOM_PACKS:
+            relative_path = Path(relative)
+            if relative_path.is_absolute() or ".." in relative_path.parts:
+                raise RuntimeError(
+                    f"追加パックの指定が不正です: {relative}"
+                )
+
+            source = server / relative_path
+            destination = stage / relative_path
+
+            if not source.is_dir():
+                raise RuntimeError(
+                    f"引き継ぐ追加パックが見つかりません: {relative}"
+                )
+            if destination.exists():
+                raise RuntimeError(
+                    f"新版パッケージと追加パックが競合します: {relative}"
+                )
+
+            _copy_as(account, source, destination)
+
+        # config/defaultは新版を使用。
+        # スクリプトUUID別の独自設定フォルダーを引き継ぐ。
+        old_config = server / "config"
+        if old_config.is_dir():
+            for source in old_config.iterdir():
+                if not source.is_dir() or source.name == "default":
+                    continue
+
+                destination = stage / "config" / source.name
+                if destination.exists():
+                    raise RuntimeError(
+                        f"独自configが新版と競合します: {source.name}"
+                    )
+                _copy_as(account, source, destination)
+
+        _validate_world_packs(stage)
+
+        # default設定は旧版も保存し、手動比較できるようにする。
+        old_default = server / "config" / "default"
+        if old_default.is_dir():
+            _copy_as(
+                account,
+                old_default,
+                stage / "_previous_config_default",
+            )
+            messages.append(
+                "旧config/defaultは _previous_config_default に"
+                "保存しました。独自変更がある場合は比較してください。\n"
+            )
+
+        # 準備中にサーバーが起動していないか再確認。
+        if check_screen_session(account, session_name):
+            raise RuntimeError(
+                "準備中にサーバーが起動したため、切り替えを中止しました。"
+            )
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        retired = server.with_name(f"{server.name}-old-{stamp}")
+        if retired.exists():
+            raise RuntimeError("退避先がすでに存在します。")
+
+        _run_as(account, "mv", server, retired)
+
+        try:
+            _run_as(account, "mv", stage, server)
+        except Exception:
+            # 切り替えに失敗した場合は旧版を元に戻す。
+            if not server.exists():
+                _run_as(account, "mv", retired, server)
+            raise
+
+        stage = None
+        messages.append(
+            f"サーバー更新とパック移行が完了しました: {server_version}\n"
+            f"旧サーバーの保存先: {retired}\n"
+            "起動後にログとアドオンの動作を確認してください。\n"
+        )
+
+    except Exception as error:
+        messages.append(f"更新を中止しました: {error}\n")
+        if stage is not None:
+            messages.append(
+                f"確認用の作業フォルダーを残しています: {stage}\n"
+            )
+        if retired is not None and retired.exists():
+            messages.append(f"旧サーバーの保存先: {retired}\n")
+
+    return "".join(messages)
